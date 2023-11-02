@@ -1,6 +1,10 @@
+import { CashuMint, CashuWallet, getEncodedToken } from '@cashu/cashu-ts';
 import { Request, Router } from "express";
 import { createInvoice, pay } from "lightning";
 import { lnd } from "../lnd";
+import { env } from '../env';
+import { createDBConnection } from '../db';
+import { wallet } from '../mint';
 
 const router = Router();
 
@@ -14,7 +18,7 @@ interface RequestInvoice extends Request {
     }
 }
 
-router.get('/request-invoice', async (req: RequestInvoice, res) => {
+router.post('/request_invoice', async (req: RequestInvoice, res) => {
     try {
         const invoice = await createInvoice({ lnd, tokens: req.body.amount });
         const payreq = invoice.request;
@@ -31,7 +35,7 @@ interface PayInvoice extends Request {
     }
 }
 
-router.post('/pay-invoice', async (req: PayInvoice, res) => {
+router.post('/pay_invoice', async (req: PayInvoice, res) => {
     try {
         const invoice = req.body.invoice;
 
@@ -43,17 +47,19 @@ router.post('/pay-invoice', async (req: PayInvoice, res) => {
     }
 });
 
-export const gateway = router;
-
-/*
-
 interface RequestPix extends Request {
     body: {
         amount: number;
     }
 }
 
-router.post('/request-pix', async (req: RequestPix, res) => { });
+router.post('/request_pix', async (req: RequestPix, res) => {
+    try {
+        // TODO: implement pix
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
 
 interface PayPix extends Request {
     body: {
@@ -61,8 +67,15 @@ interface PayPix extends Request {
     }
 }
 
-router.post('/pay-pix', async (req: PayPix, res) => { });
+router.post('/pay_pix', async (req: PayPix, res) => {
+    try {
+        // TODO: implement pix
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
 
+/// Cashu
 
 interface RedeemToken extends Request {
     body: {
@@ -70,7 +83,13 @@ interface RedeemToken extends Request {
     }
 }
 
-router.post('/redeem-token', async (req: RedemToken, res) => { });
+router.post('/redeem_token', async (req: RedeemToken, res) => {
+    try {
+        // TODO: implement redeem token
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
 
 interface IssueToken extends Request {
     body: {
@@ -78,6 +97,89 @@ interface IssueToken extends Request {
     }
 }
 
-router.post('/issue-token', async (req: IssueToken, res) => { });
+router.post('/issue_token', async (req: IssueToken, res) => {
+    try {
 
-*/
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
+
+interface CreateWallet extends Request {
+    body: {
+        userId: number;
+    }
+}
+
+router.post('/create_wallet', async (req: CreateWallet, res) => {
+    try {
+        const userId = req.body.userId;
+
+        //const wallet = new CashuWallet(new CashuMint(env.MINT_URL));
+
+        return res.send(200);
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
+
+interface Fund extends Request {
+    body: {
+        amount: number;
+    }
+}
+
+router.post('/fund', async (req: Fund, res) => {
+    try {
+        const amount = req.body.amount;
+        const { pr, hash } = await wallet.requestMint(amount);
+
+        await pay({ lnd, request: pr });
+
+        const { proofs, newKeys } = await wallet.requestTokens(amount, hash);
+
+        const encoded = getEncodedToken({ token: [{ mint: env.MINT_URL, proofs }] });
+
+        console.log(encoded);
+
+        return res.send(200);
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
+
+interface Register extends Request {
+    body: {
+        email: string;
+    }
+}
+
+router.post('/login_or_register', async (req: Register, res) => {
+    try {
+        const conn = createDBConnection();
+        const email = req.body.email;
+
+        conn.each(`SELECT id FROM users WHERE email = ?`, [email], (err, row: { id: number }[]) => {
+            if (err) {
+                console.log(err);
+            }
+
+            if (row.length == 0) {
+                conn.run(`INSERT INTO users (email) VALUES (?)`, [email], (err) => {
+                    if (err) {
+                        console.log(err);
+                    }
+                });
+
+                return;
+            }
+        });
+
+        return res.status(200).send('ok');
+
+    } catch (err) {
+        return res.status(500).send(err);
+    }
+});
+
+export const gateway = router;

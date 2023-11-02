@@ -6,6 +6,8 @@ export const envSchema = z.object({
     LND_SOCKET: z.string(),
     LND_CERT: z.string(),
     LND_MACAROON: z.string(),
+    MINT_URL: z.string(),
+    DB_NAME: z.string(),
 });
 
 function getEnv() {
